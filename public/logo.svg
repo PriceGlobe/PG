@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120" width="400" height="120">
+  <defs>
+    <linearGradient id="globeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0077B6;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#00B4D8;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#90E0EF;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="tagGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF6B6B;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FF8E53;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Globe background ring -->
+  <circle cx="55" cy="60" r="42" fill="none" stroke="url(#globeGrad)" stroke-width="3" opacity="0.3"/>
+
+  <!-- Globe outer circle -->
+  <circle cx="55" cy="60" r="38" fill="none" stroke="#0D1B2A" stroke-width="2.5"/>
+
+  <!-- Globe horizontal grid lines -->
+  <ellipse cx="55" cy="42" rx="34" ry="8" fill="none" stroke="#00B4D8" stroke-width="1.5" opacity="0.5"/>
+  <ellipse cx="55" cy="60" rx="38" ry="8" fill="none" stroke="#00B4D8" stroke-width="1.5" opacity="0.5"/>
+  <ellipse cx="55" cy="78" rx="34" ry="8" fill="none" stroke="#00B4D8" stroke-width="1.5" opacity="0.5"/>
+
+  <!-- Globe vertical line -->
+  <line x1="55" y1="22" x2="55" y2="98" stroke="#00B4D8" stroke-width="1.5" opacity="0.4"/>
+
+  <!-- Price tag shape on globe (left) -->
+  <path d="M 38 45 L 50 33 L 62 33 L 62 45 L 55 52 L 48 45 Z" fill="url(#globeGrad)" opacity="0.8"/>
+  <circle cx="50" cy="39" r="2.5" fill="white" opacity="0.7"/>
+
+  <!-- Price tag shape on globe (right) -->
+  <path d="M 52 55 L 64 43 L 74 43 L 74 55 L 68 62 L 60 55 Z" fill="url(#tagGrad)" opacity="0.8"/>
+  <circle cx="64" cy="49" r="2.5" fill="white" opacity="0.7"/>
+
+  <!-- Dollar/Price symbol as center dot -->
+  <text x="38" y="72" font-family="Arial, Helvetica, sans-serif" font-size="14" font-weight="bold" fill="#2EC4B6" opacity="0.8">$</text>
+  <text x="60" y="78" font-family="Arial, Helvetica, sans-serif" font-size="10" font-weight="bold" fill="#FF6B6B" opacity="0.8">%</text>
+
+  <!-- Wordmark: PriceGlobe -->
+  <text x="108" y="55" font-family="'Inter', 'Segoe UI', Arial, Helvetica, sans-serif" font-size="36" font-weight="700" fill="#0D1B2A" letter-spacing="1">Price</text>
+  <text x="234" y="55" font-family="'Inter', 'Segoe UI', Arial, Helvetica, sans-serif" font-size="36" font-weight="300" fill="#00B4D8" letter-spacing="1">Globe</text>
+
+  <!-- Tagline -->
+  <text x="108" y="82" font-family="'Inter', 'Segoe UI', Arial, Helvetica, sans-serif" font-size="12" font-weight="400" fill="#6C757D" letter-spacing="3">COMPARE PRICES. ANYWHERE.</text>
+
+</svg>
