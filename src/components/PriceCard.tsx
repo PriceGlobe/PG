@@ -18,6 +18,8 @@ export interface PriceResult {
   currency: string;
   isLowest: boolean;
   isFeatured?: boolean;
+  shippingEstimate?: number;
+  dutyEstimate?: number;
 }
 
 interface PriceCardProps {
@@ -27,6 +29,7 @@ interface PriceCardProps {
 export const PriceCard: React.FC<PriceCardProps> = ({ result }) => {
   const savings = result.originalPrice - result.currentPrice;
   const savingsPercent = Math.round((savings / result.originalPrice) * 100);
+  const hasExtraCosts = (result.shippingEstimate || 0) > 0 || (result.dutyEstimate || 0) > 0;
 
   return (
     <div 
@@ -39,7 +42,7 @@ export const PriceCard: React.FC<PriceCardProps> = ({ result }) => {
       {result.isLowest && (
         <div className="absolute top-0 right-0 bg-brand-success text-white px-3 py-1 rounded-bl-lg flex items-center gap-1 text-xs font-semibold">
           <Trophy size={12} />
-          Lowest Price
+          Best Landed Cost
         </div>
       )}
 
@@ -71,6 +74,11 @@ export const PriceCard: React.FC<PriceCardProps> = ({ result }) => {
             </span>
           )}
         </div>
+        {hasExtraCosts && (
+          <div className="text-[10px] text-neutral-mid-gray font-medium uppercase tracking-wider">
+            Includes est. {result.currency}{(result.shippingEstimate || 0) + (result.dutyEstimate || 0)} shipping & duties
+          </div>
+        )}
       </div>
 
       <button className="w-full mt-6 bg-brand-teal hover:bg-brand-teal-dark text-white font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2">

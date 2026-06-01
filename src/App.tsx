@@ -167,8 +167,10 @@ function App() {
                   rating: result.rating,
                   originalPrice: result.price * 1.2, // Mock original
                   currentPrice: result.totalLandedCost,
-                  currency: '$', // Simplified for now
+                  currency: '$', 
                   isLowest: result.isLowest || false,
+                  shippingEstimate: result.shippingEstimate,
+                  dutyEstimate: result.dutyEstimate,
                 }} 
               />
             ))}
