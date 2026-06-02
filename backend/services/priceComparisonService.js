@@ -25,6 +25,11 @@ class PriceComparisonService {
             }
 
             const totalLandedCost = convertedPrice + shippingEstimate + dutyEstimate;
+            
+            // Savings Calculation (Mock original price for now)
+            const mockOriginalPrice = totalLandedCost * 1.25; 
+            const savingsAmount = mockOriginalPrice - totalLandedCost;
+            const savingsPercentage = (savingsAmount / mockOriginalPrice) * 100;
 
             return {
                 ...listing,
@@ -33,6 +38,8 @@ class PriceComparisonService {
                 shippingEstimate,
                 dutyEstimate,
                 totalLandedCost,
+                savingsAmount,
+                savingsPercentage,
                 affiliateUrl: this.generateAffiliateLink(listing.url, listing.store_name)
             };
         }));
