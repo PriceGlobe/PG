@@ -1,6 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Header } from './components/Header';
-import { PriceCard, PriceResult } from './components/PriceCard';
+import { PriceCard } from './components/PriceCard';
+import { SkeletonCard } from './components/SkeletonCard';
+import { EmptyState } from './components/EmptyState';
+import { ErrorState } from './components/ErrorState';
+import { FilterBar } from './components/FilterBar';
+import { UsageMeter } from './components/UsageMeter';
 import { Dumbbell, Fuel, ShoppingCart, TrendingDown, Globe2, ShieldCheck, Loader2 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -12,6 +17,13 @@ function App() {
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [prices, setPrices] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [searchCount, setSearchCount] = useState(3);
+  
+  // Filtering & Sorting State
+  const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState('landed');
 
   const categories = [
     { id: 'sports', name: 'Sports', icon: Dumbbell },
@@ -25,50 +37,120 @@ function App() {
 
   const fetchProducts = async () => {
     setLoading(true);
+    setError(null);
+    setSearchCount(prev => Math.min(prev + 1, 5));
     try {
       const res = await fetch(`${API_BASE_URL}/products?category=${activeCategory}`);
+      if (!res.ok) throw new Error('Failed to fetch products');
       const data = await res.json();
       setProducts(data);
       if (data.length > 0) {
-        fetchPrices(data[0].id);
         setSelectedProduct(data[0]);
+        fetchPrices(data[0].id);
       } else {
         setPrices([]);
         setSelectedProduct(null);
       }
-    } catch (err) {
-      console.error('Failed to fetch products', err);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
   const fetchPrices = async (productId: number) => {
-    setLoading(true);
+    setScanning(true);
+    setError(null);
+    setSelectedCountry(null); // Reset filters on new product
     try {
+      // Simulate scanning feel
+      await new Promise(resolve => setTimeout(resolve, 800));
       const res = await fetch(`${API_BASE_URL}/prices/${productId}`);
+      if (!res.ok) throw new Error('Failed to fetch prices');
       const data = await res.json();
       setPrices(data);
-    } catch (err) {
-      console.error('Failed to fetch prices', err);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message);
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const handleSearch = async (term: string) => {
+    if (!term) return;
+    setLoading(true);
+    setError(null);
+    try {
+      setSearchCount(prev => prev + 1);
+      const res = await fetch(`${API_BASE_URL}/products?q=${encodeURIComponent(term)}`);
+      if (!res.ok) throw new Error('Failed to search products');
+      const data = await res.json();
+      setProducts(data);
+      if (data.length > 0) {
+        setSelectedProduct(data[0]);
+        fetchPrices(data[0].id);
+      } else {
+        setPrices([]);
+        setSelectedProduct(null);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleRetry = () => {
+    if (selectedProduct) {
+      fetchPrices(selectedProduct.id);
+    } else {
+      fetchProducts();
+    }
+  };
+
+  // Memoized Filtered & Sorted Prices
+  const filteredPrices = useMemo(() => {
+    let result = [...prices];
+    
+    if (selectedCountry) {
+      result = result.filter(p => p.country === selectedCountry);
+    }
+    
+    result.sort((a, b) => {
+      if (sortBy === 'landed') return a.totalLandedCost - b.totalLandedCost;
+      if (sortBy === 'price_low') return a.price - b.price;
+      if (sortBy === 'rating') return b.rating - a.rating;
+      return 0;
+    });
+    
+    return result;
+  }, [prices, selectedCountry, sortBy]);
+
+  const availableCountries = useMemo(() => {
+    const countries = new Set(prices.map(p => p.country));
+    return Array.from(countries).sort();
+  }, [prices]);
+
   return (
     <div className="min-h-screen bg-neutral-near-white font-sans text-neutral-charcoal">
-      <Header />
+      <Header onSearch={handleSearch} isSearching={loading} />
       
       <main className="max-w-6xl mx-auto px-6 py-8">
-        {/* Hero Section */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl md:text-5xl font-bold text-brand-ocean mb-4">
-            Compare prices. <span className="text-brand-teal">Anywhere.</span>
-          </h1>
-          <p className="text-lg text-neutral-mid-gray max-w-2xl mx-auto">
-            AI-powered global price comparison with real-time landed cost estimates.
-          </p>
+        <div className="flex flex-col md:flex-row justify-between items-center gap-8 mb-12">
+          <div className="text-left flex-1">
+            <h1 className="text-4xl md:text-5xl font-bold text-brand-ocean mb-4">
+              Compare prices. <span className="text-brand-teal">Anywhere.</span>
+            </h1>
+            <p className="text-lg text-neutral-mid-gray max-w-2xl">
+              AI-powered global price comparison with real-time landed cost estimates.
+            </p>
+          </div>
+          <div className="w-full md:w-72">
+            <UsageMeter used={searchCount} total={5} />
+          </div>
         </div>
 
         {/* Category Tabs */}
@@ -95,7 +177,7 @@ function App() {
         </div>
 
         {/* Product Selection */}
-        {products.length > 0 && (
+        {!loading && products.length > 0 && (
           <div className="mb-8 flex flex-wrap justify-center gap-4">
             {products.map((p) => (
               <button
@@ -119,68 +201,94 @@ function App() {
 
         {/* Stats / Value Prop Mini-cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <div className="bg-white p-4 rounded-xl border border-neutral-light-gray flex items-center gap-4">
+          <div className="bg-white p-4 rounded-xl border border-neutral-light-gray flex items-center gap-4 shadow-sm">
             <div className="bg-brand-teal/10 p-3 rounded-lg text-brand-teal">
               <TrendingDown size={24} />
             </div>
             <div>
-              <div className="font-bold text-xl">24% AVG</div>
+              <div className="font-bold text-xl uppercase text-neutral-charcoal">24% Avg</div>
               <div className="text-sm text-neutral-mid-gray">Daily savings found</div>
             </div>
           </div>
-          <div className="bg-white p-4 rounded-xl border border-neutral-light-gray flex items-center gap-4">
+          <div className="bg-white p-4 rounded-xl border border-neutral-light-gray flex items-center gap-4 shadow-sm">
             <div className="bg-brand-success/10 p-3 rounded-lg text-brand-success">
               <Globe2 size={24} />
             </div>
             <div>
-              <div className="font-bold text-xl">15 COUNTRIES</div>
+              <div className="font-bold text-xl uppercase text-neutral-charcoal">15 Countries</div>
               <div className="text-sm text-neutral-mid-gray">Real-time tracking</div>
             </div>
           </div>
-          <div className="bg-white p-4 rounded-xl border border-neutral-light-gray flex items-center gap-4">
+          <div className="bg-white p-4 rounded-xl border border-neutral-light-gray flex items-center gap-4 shadow-sm">
             <div className="bg-brand-coral/10 p-3 rounded-lg text-brand-coral">
               <ShieldCheck size={24} />
             </div>
             <div>
-              <div className="font-bold text-xl">LANDED COST</div>
+              <div className="font-bold text-xl uppercase text-neutral-charcoal">Landed Cost</div>
               <div className="text-sm text-neutral-mid-gray">Incl. shipping & duties</div>
             </div>
           </div>
         </div>
 
-        {/* Results Grid */}
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <Loader2 className="animate-spin text-brand-teal mb-4" size={48} />
-            <p className="text-neutral-mid-gray">Fetching latest prices...</p>
-          </div>
-        ) : (
+        {/* Main Content Area */}
+        {error ? (
+          <ErrorState onRetry={handleRetry} />
+        ) : loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {prices.map((result) => (
-              <PriceCard 
-                key={result.id} 
-                result={{
-                  id: result.id.toString(),
-                  storeName: result.store_name,
-                  country: result.country,
-                  city: result.city,
-                  rating: result.rating,
-                  originalPrice: result.price * 1.2, // Mock original
-                  currentPrice: result.totalLandedCost,
-                  currency: '$', 
-                  isLowest: result.isLowest || false,
-                  shippingEstimate: result.shippingEstimate,
-                  dutyEstimate: result.dutyEstimate,
-                }} 
-              />
-            ))}
+            {[1, 2, 3, 4, 5, 6].map(i => <SkeletonCard key={i} />)}
           </div>
-        )}
-
-        {!loading && prices.length === 0 && (
-          <div className="text-center py-20">
-            <p className="text-neutral-mid-gray">No prices found for this product yet.</p>
+        ) : scanning ? (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="relative mb-6">
+              <div className="w-16 h-16 border-4 border-brand-teal/20 border-t-brand-teal rounded-full animate-spin"></div>
+              <Loader2 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-brand-teal animate-pulse" size={24} />
+            </div>
+            <h3 className="text-xl font-bold text-neutral-charcoal mb-2">Scanning global prices...</h3>
+            <p className="text-neutral-mid-gray italic text-sm">Comparing deals for {selectedProduct?.name} across 12 countries...</p>
           </div>
+        ) : prices.length > 0 ? (
+          <>
+            <FilterBar 
+              countries={availableCountries}
+              selectedCountry={selectedCountry}
+              onCountryChange={setSelectedCountry}
+              sortBy={sortBy}
+              onSortChange={setSortBy}
+              resultsCount={filteredPrices.length}
+            />
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredPrices.map((result) => (
+                <PriceCard 
+                  key={result.id} 
+                  result={{
+                    id: result.id.toString(),
+                    storeName: result.store_name,
+                    country: result.country,
+                    city: result.city,
+                    rating: result.rating,
+                    originalPrice: result.totalLandedCost * 1.25, 
+                    currentPrice: result.totalLandedCost,
+                    currency: result.targetCurrency === 'EUR' ? '€' : '$', 
+                    isLowest: result.isLowest && !selectedCountry, // Only show lowest tag if no country filter
+                    shippingEstimate: result.shippingEstimate,
+                    dutyEstimate: result.dutyEstimate,
+                  }} 
+                />
+              ))}
+            </div>
+            
+            {filteredPrices.length === 0 && (
+              <div className="text-center py-20 bg-white rounded-xl border border-dashed border-neutral-light-gray">
+                <p className="text-neutral-mid-gray">No results found in <span className="font-bold">{selectedCountry}</span>. Try another country or clear filters.</p>
+              </div>
+            )}
+          </>
+        ) : (
+          <EmptyState 
+            searchTerm={activeCategory} 
+            onBrowseCategories={() => setActiveCategory('sports')} 
+          />
         )}
       </main>
 
@@ -215,7 +323,7 @@ function App() {
           </div>
         </div>
         <div className="max-w-6xl mx-auto mt-12 pt-8 border-t border-neutral-light-gray text-center text-neutral-mid-gray text-xs">
-          © 2024 PriceGlobe AI. All rights reserved.
+          © 2026 PriceGlobe AI. All rights reserved.
         </div>
       </footer>
     </div>
