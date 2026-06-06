@@ -1,17 +1,22 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Header } from './components/Header';
+import { Sidebar } from './components/Sidebar';
+import { Dashboard } from './components/Dashboard';
 import { PriceCard } from './components/PriceCard';
 import { SkeletonCard } from './components/SkeletonCard';
 import { EmptyState } from './components/EmptyState';
 import { ErrorState } from './components/ErrorState';
 import { FilterBar } from './components/FilterBar';
 import { UsageMeter } from './components/UsageMeter';
-import { Dumbbell, Fuel, ShoppingCart, TrendingDown, Globe2, ShieldCheck, Loader2 } from 'lucide-react';
+import { UpgradeModal } from './components/UpgradeModal';
+import { Toast } from './components/Toast';
+import { Dumbbell, Fuel, ShoppingCart, TrendingDown, Globe2, ShieldCheck, Loader2, Menu } from 'lucide-react';
 import { clsx } from 'clsx';
 
 const API_BASE_URL = 'http://localhost:3001/api';
 
 function App() {
+  const [activePage, setActivePage] = useState('dashboard');
   const [activeCategory, setActiveCategory] = useState<'sports' | 'gas' | 'groceries'>('sports');
   const [products, setProducts] = useState<any[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
@@ -25,6 +30,15 @@ function App() {
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState('landed');
 
+  // Sidebar & Modal State
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [isToastVisible, setIsToastVisible] = useState(false);
+
+  // Watchlist State (mocked)
+  const [watchedIds, setWatchedIds] = useState<string[]>(['1', '3', '5']);
+
   const categories = [
     { id: 'sports', name: 'Sports', icon: Dumbbell },
     { id: 'gas', name: 'Gas', icon: Fuel },
@@ -32,13 +46,14 @@ function App() {
   ];
 
   useEffect(() => {
-    fetchProducts();
-  }, [activeCategory]);
+    if (activePage === 'search') {
+      fetchProducts();
+    }
+  }, [activeCategory, activePage]);
 
   const fetchProducts = async () => {
     setLoading(true);
     setError(null);
-    setSearchCount(prev => Math.min(prev + 1, 5));
     try {
       const res = await fetch(`${API_BASE_URL}/products?category=${activeCategory}`);
       if (!res.ok) throw new Error('Failed to fetch products');
@@ -62,14 +77,14 @@ function App() {
   const fetchPrices = async (productId: number) => {
     setScanning(true);
     setError(null);
-    setSelectedCountry(null); // Reset filters on new product
+    setSelectedCountry(null); 
     try {
-      // Simulate scanning feel
       await new Promise(resolve => setTimeout(resolve, 800));
       const res = await fetch(`${API_BASE_URL}/prices/${productId}`);
       if (!res.ok) throw new Error('Failed to fetch prices');
       const data = await res.json();
       setPrices(data);
+      setSearchCount(prev => Math.min(prev + 1, 10));
     } catch (err: any) {
       console.error(err);
       setError(err.message);
@@ -80,10 +95,10 @@ function App() {
 
   const handleSearch = async (term: string) => {
     if (!term) return;
+    setActivePage('search');
     setLoading(true);
     setError(null);
     try {
-      setSearchCount(prev => prev + 1);
       const res = await fetch(`${API_BASE_URL}/products?q=${encodeURIComponent(term)}`);
       if (!res.ok) throw new Error('Failed to search products');
       const data = await res.json();
@@ -103,6 +118,18 @@ function App() {
     }
   };
 
+  const toggleWatchlist = (id: string) => {
+    const isWatched = watchedIds.includes(id);
+    if (isWatched) {
+      setWatchedIds(prev => prev.filter(i => i !== id));
+    } else {
+      setWatchedIds(prev => [...prev, id]);
+      const product = prices.find(p => p.id.toString() === id);
+      setToastMessage(`Price alert set for ${product?.store_name || 'this item'}!`);
+      setIsToastVisible(true);
+    }
+  };
+
   const handleRetry = () => {
     if (selectedProduct) {
       fetchPrices(selectedProduct.id);
@@ -111,21 +138,17 @@ function App() {
     }
   };
 
-  // Memoized Filtered & Sorted Prices
   const filteredPrices = useMemo(() => {
     let result = [...prices];
-    
     if (selectedCountry) {
       result = result.filter(p => p.country === selectedCountry);
     }
-    
     result.sort((a, b) => {
       if (sortBy === 'landed') return a.totalLandedCost - b.totalLandedCost;
       if (sortBy === 'price_low') return a.price - b.price;
       if (sortBy === 'rating') return b.rating - a.rating;
       return 0;
     });
-    
     return result;
   }, [prices, selectedCountry, sortBy]);
 
@@ -134,198 +157,234 @@ function App() {
     return Array.from(countries).sort();
   }, [prices]);
 
-  return (
-    <div className="min-h-screen bg-neutral-near-white font-sans text-neutral-charcoal">
-      <Header onSearch={handleSearch} isSearching={loading} />
-      
-      <main className="max-w-6xl mx-auto px-6 py-8">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-8 mb-12">
-          <div className="text-left flex-1">
-            <h1 className="text-4xl md:text-5xl font-bold text-brand-ocean mb-4">
-              Compare prices. <span className="text-brand-teal">Anywhere.</span>
-            </h1>
-            <p className="text-lg text-neutral-mid-gray max-w-2xl">
-              AI-powered global price comparison with real-time landed cost estimates.
-            </p>
-          </div>
-          <div className="w-full md:w-72">
-            <UsageMeter used={searchCount} total={5} />
-          </div>
-        </div>
+  const renderContent = () => {
+    switch (activePage) {
+      case 'dashboard':
+        return <Dashboard />;
+      case 'search':
+        return (
+          <div className="space-y-8 animate-in fade-in duration-500">
+             <div className="flex flex-col md:flex-row justify-between items-center gap-8">
+              <div className="text-left flex-1">
+                <h1 className="text-3xl font-bold text-brand-ocean mb-2">
+                  Search Results
+                </h1>
+                <p className="text-neutral-mid-gray">
+                  Showing global prices for {selectedProduct?.name || 'your search'}.
+                </p>
+              </div>
+              <div className="w-full md:w-72">
+                <UsageMeter used={searchCount} total={5} />
+              </div>
+            </div>
 
-        {/* Category Tabs */}
-        <div className="flex justify-center gap-4 mb-8">
-          {categories.map((cat) => {
-            const Icon = cat.icon;
-            const isActive = activeCategory === cat.id;
-            return (
-              <button
-                key={cat.id}
-                onClick={() => setActiveCategory(cat.id as any)}
-                className={clsx(
-                  "flex items-center gap-2 px-6 py-3 rounded-full font-medium transition-all",
-                  isActive 
-                    ? "bg-brand-teal text-white shadow-lg shadow-brand-teal/20" 
-                    : "bg-white text-neutral-mid-gray hover:bg-neutral-light-gray"
-                )}
-              >
-                <Icon size={20} />
-                {cat.name}
-              </button>
-            );
-          })}
-        </div>
+            {/* Category Tabs */}
+            <div className="flex justify-center gap-4">
+              {categories.map((cat) => {
+                const Icon = cat.icon;
+                const isActive = activeCategory === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => setActiveCategory(cat.id as any)}
+                    className={clsx(
+                      "flex items-center gap-2 px-6 py-2.5 rounded-full font-medium transition-all text-sm",
+                      isActive 
+                        ? "bg-brand-teal text-white shadow-lg shadow-brand-teal/20" 
+                        : "bg-white text-neutral-mid-gray hover:bg-neutral-light-gray"
+                    )}
+                  >
+                    <Icon size={18} />
+                    {cat.name}
+                  </button>
+                );
+              })}
+            </div>
 
-        {/* Product Selection */}
-        {!loading && products.length > 0 && (
-          <div className="mb-8 flex flex-wrap justify-center gap-4">
-            {products.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => {
-                  setSelectedProduct(p);
-                  fetchPrices(p.id);
-                }}
-                className={clsx(
-                  "px-4 py-2 rounded-lg border text-sm font-medium transition-all",
-                  selectedProduct?.id === p.id
-                    ? "border-brand-teal bg-brand-teal/5 text-brand-teal"
-                    : "border-neutral-light-gray bg-white text-neutral-mid-gray hover:border-neutral-mid-gray"
-                )}
-              >
-                {p.name}
-              </button>
-            ))}
-          </div>
-        )}
+            {/* Product Selection */}
+            {!loading && products.length > 0 && (
+              <div className="flex flex-wrap justify-center gap-3">
+                {products.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => {
+                      setSelectedProduct(p);
+                      fetchPrices(p.id);
+                    }}
+                    className={clsx(
+                      "px-4 py-2 rounded-lg border text-xs font-bold transition-all uppercase tracking-wider",
+                      selectedProduct?.id === p.id
+                        ? "border-brand-teal bg-brand-teal/5 text-brand-teal"
+                        : "border-neutral-light-gray bg-white text-neutral-mid-gray hover:border-neutral-mid-gray"
+                    )}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            )}
 
-        {/* Stats / Value Prop Mini-cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <div className="bg-white p-4 rounded-xl border border-neutral-light-gray flex items-center gap-4 shadow-sm">
-            <div className="bg-brand-teal/10 p-3 rounded-lg text-brand-teal">
-              <TrendingDown size={24} />
-            </div>
-            <div>
-              <div className="font-bold text-xl uppercase text-neutral-charcoal">24% Avg</div>
-              <div className="text-sm text-neutral-mid-gray">Daily savings found</div>
-            </div>
-          </div>
-          <div className="bg-white p-4 rounded-xl border border-neutral-light-gray flex items-center gap-4 shadow-sm">
-            <div className="bg-brand-success/10 p-3 rounded-lg text-brand-success">
-              <Globe2 size={24} />
-            </div>
-            <div>
-              <div className="font-bold text-xl uppercase text-neutral-charcoal">15 Countries</div>
-              <div className="text-sm text-neutral-mid-gray">Real-time tracking</div>
-            </div>
-          </div>
-          <div className="bg-white p-4 rounded-xl border border-neutral-light-gray flex items-center gap-4 shadow-sm">
-            <div className="bg-brand-coral/10 p-3 rounded-lg text-brand-coral">
-              <ShieldCheck size={24} />
-            </div>
-            <div>
-              <div className="font-bold text-xl uppercase text-neutral-charcoal">Landed Cost</div>
-              <div className="text-sm text-neutral-mid-gray">Incl. shipping & duties</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Main Content Area */}
-        {error ? (
-          <ErrorState onRetry={handleRetry} />
-        ) : loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3, 4, 5, 6].map(i => <SkeletonCard key={i} />)}
-          </div>
-        ) : scanning ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <div className="relative mb-6">
-              <div className="w-16 h-16 border-4 border-brand-teal/20 border-t-brand-teal rounded-full animate-spin"></div>
-              <Loader2 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-brand-teal animate-pulse" size={24} />
-            </div>
-            <h3 className="text-xl font-bold text-neutral-charcoal mb-2">Scanning global prices...</h3>
-            <p className="text-neutral-mid-gray italic text-sm">Comparing deals for {selectedProduct?.name} across 12 countries...</p>
-          </div>
-        ) : prices.length > 0 ? (
-          <>
-            <FilterBar 
-              countries={availableCountries}
-              selectedCountry={selectedCountry}
-              onCountryChange={setSelectedCountry}
-              sortBy={sortBy}
-              onSortChange={setSortBy}
-              resultsCount={filteredPrices.length}
-            />
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredPrices.map((result) => (
-                <PriceCard 
-                  key={result.id} 
-                  result={{
-                    id: result.id.toString(),
-                    storeName: result.store_name,
-                    country: result.country,
-                    city: result.city,
-                    rating: result.rating,
-                    originalPrice: result.totalLandedCost * 1.25, 
-                    currentPrice: result.totalLandedCost,
-                    currency: result.targetCurrency === 'EUR' ? '€' : '$', 
-                    isLowest: result.isLowest && !selectedCountry, // Only show lowest tag if no country filter
-                    shippingEstimate: result.shippingEstimate,
-                    dutyEstimate: result.dutyEstimate,
-                  }} 
+            {error ? (
+              <ErrorState onRetry={handleRetry} />
+            ) : loading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[1, 2, 3].map(i => <SkeletonCard key={i} />)}
+              </div>
+            ) : scanning ? (
+              <div className="flex flex-col items-center justify-center py-20">
+                <div className="relative mb-6">
+                  <div className="w-16 h-16 border-4 border-brand-teal/20 border-t-brand-teal rounded-full animate-spin"></div>
+                  <Loader2 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-brand-teal animate-pulse" size={24} />
+                </div>
+                <h3 className="text-xl font-bold text-neutral-charcoal mb-2">Scanning global prices...</h3>
+                <p className="text-neutral-mid-gray italic text-sm">Comparing deals for {selectedProduct?.name} across 12 countries...</p>
+              </div>
+            ) : prices.length > 0 ? (
+              <>
+                <FilterBar 
+                  countries={availableCountries}
+                  selectedCountry={selectedCountry}
+                  onCountryChange={setSelectedCountry}
+                  sortBy={sortBy}
+                  onSortChange={setSortBy}
+                  resultsCount={filteredPrices.length}
                 />
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredPrices.map((result) => (
+                    <PriceCard 
+                      key={result.id} 
+                      onToggleWatchlist={toggleWatchlist}
+                      result={{
+                        id: result.id.toString(),
+                        storeName: result.store_name,
+                        country: result.country,
+                        city: result.city,
+                        rating: result.rating,
+                        originalPrice: result.totalLandedCost * 1.25, 
+                        currentPrice: result.totalLandedCost,
+                        currency: result.targetCurrency === 'EUR' ? '€' : '$', 
+                        isLowest: result.isLowest && !selectedCountry,
+                        isWatched: watchedIds.includes(result.id.toString()),
+                        shippingEstimate: result.shippingEstimate,
+                        dutyEstimate: result.dutyEstimate,
+                      }} 
+                    />
+                  ))}
+                </div>
+              </>
+            ) : (
+              <EmptyState 
+                searchTerm={activeCategory} 
+                onBrowseCategories={() => setActiveCategory('sports')} 
+              />
+            )}
+          </div>
+        );
+      case 'premium':
+        return (
+          <div className="max-w-4xl mx-auto py-12 text-center">
+             <div className="bg-brand-gold/20 w-20 h-20 rounded-3xl flex items-center justify-center mb-8 mx-auto">
+              <Crown className="text-brand-gold" size={40} />
+            </div>
+            <h1 className="text-4xl font-bold text-neutral-charcoal mb-4">PriceGlobe Premium</h1>
+            <p className="text-xl text-neutral-mid-gray mb-12">The ultimate tools for global shoppers and deal hunters.</p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {[
+                { title: 'Unlimited Searches', desc: 'No daily limits. Search as much as you want.' },
+                { title: 'Price Alerts', desc: 'Get notified instantly when prices drop.' },
+                { title: 'Price History', desc: 'Track trends over 90 days with interactive charts.' }
+              ].map((f, i) => (
+                <div key={i} className="bg-white p-8 rounded-2xl border border-neutral-light-gray shadow-sm">
+                  <h3 className="font-bold text-lg mb-2">{f.title}</h3>
+                  <p className="text-neutral-mid-gray text-sm">{f.desc}</p>
+                </div>
               ))}
             </div>
             
-            {filteredPrices.length === 0 && (
-              <div className="text-center py-20 bg-white rounded-xl border border-dashed border-neutral-light-gray">
-                <p className="text-neutral-mid-gray">No results found in <span className="font-bold">{selectedCountry}</span>. Try another country or clear filters.</p>
-              </div>
-            )}
-          </>
-        ) : (
-          <EmptyState 
-            searchTerm={activeCategory} 
-            onBrowseCategories={() => setActiveCategory('sports')} 
-          />
-        )}
-      </main>
+            <button 
+              onClick={() => setIsUpgradeModalOpen(true)}
+              className="mt-12 px-12 py-4 bg-brand-teal text-white rounded-2xl font-bold text-lg hover:bg-brand-teal/90 transition-all shadow-xl shadow-brand-teal/20"
+            >
+              Start Free Trial
+            </button>
+          </div>
+        );
+      default:
+        return (
+          <div className="flex flex-col items-center justify-center py-40">
+            <h2 className="text-2xl font-bold text-neutral-charcoal">{activePage.charAt(0).toUpperCase() + activePage.slice(1)}</h2>
+            <p className="text-neutral-mid-gray mt-2">This feature is coming soon.</p>
+            <button 
+              onClick={() => setActivePage('dashboard')}
+              className="mt-6 text-brand-teal font-bold hover:underline"
+            >
+              Back to Dashboard
+            </button>
+          </div>
+        );
+    }
+  };
 
-      <footer className="bg-white border-t border-neutral-light-gray mt-20 py-12 px-6">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8">
-          <div className="col-span-1 md:col-span-2">
-            <div className="flex items-center gap-2 mb-4">
-              <img src="/icon.svg" className="h-6" alt="" />
-              <span className="text-xl font-bold">PriceGlobe</span>
+  const handleSidebarTabChange = (tab: string) => {
+    if (tab === 'premium') {
+      setIsUpgradeModalOpen(true);
+    } else {
+      setActivePage(tab);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-neutral-near-white font-sans text-neutral-charcoal flex overflow-hidden">
+      <Sidebar 
+        activeTab={activePage} 
+        onTabChange={handleSidebarTabChange}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+      />
+      
+      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+        <Header 
+          onSearch={handleSearch} 
+          isSearching={loading} 
+          onMenuClick={() => setIsSidebarOpen(true)}
+        />
+        
+        <main className="flex-1 overflow-y-auto p-4 md:p-8">
+          <div className="max-w-6xl mx-auto">
+            {renderContent()}
+          </div>
+          
+          <footer className="mt-20 py-12 border-t border-neutral-light-gray">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-sm text-neutral-mid-gray">
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-6 h-6 bg-brand-ocean rounded flex items-center justify-center text-white text-[10px] font-bold">P</div>
+                  <span className="font-bold text-neutral-charcoal">PriceGlobe AI</span>
+                </div>
+                <p>© 2026 PriceGlobe. All rights reserved.</p>
+              </div>
+              <div className="flex gap-6 md:justify-end font-bold">
+                <a href="#" className="hover:text-brand-teal">Privacy</a>
+                <a href="#" className="hover:text-brand-teal">Terms</a>
+                <a href="#" className="hover:text-brand-teal">Contact</a>
+              </div>
             </div>
-            <p className="text-neutral-mid-gray max-w-sm">
-              Helping you find the best prices worldwide using advanced AI technology. No borders, just savings.
-            </p>
-          </div>
-          <div>
-            <h4 className="font-bold mb-4">Categories</h4>
-            <ul className="space-y-2 text-neutral-mid-gray text-sm">
-              <li><a href="#" className="hover:text-brand-teal">Sports Equipment</a></li>
-              <li><a href="#" className="hover:text-brand-teal">Gas & Fuel</a></li>
-              <li><a href="#" className="hover:text-brand-teal">Groceries</a></li>
-              <li><a href="#" className="hover:text-brand-teal">Travel Deals</a></li>
-            </ul>
-          </div>
-          <div>
-            <h4 className="font-bold mb-4">Support</h4>
-            <ul className="space-y-2 text-neutral-mid-gray text-sm">
-              <li><a href="#" className="hover:text-brand-teal">Contact Us</a></li>
-              <li><a href="#" className="hover:text-brand-teal">FAQ</a></li>
-              <li><a href="#" className="hover:text-brand-teal">Privacy Policy</a></li>
-              <li><a href="#" className="hover:text-brand-teal">Terms of Service</a></li>
-            </ul>
-          </div>
-        </div>
-        <div className="max-w-6xl mx-auto mt-12 pt-8 border-t border-neutral-light-gray text-center text-neutral-mid-gray text-xs">
-          © 2026 PriceGlobe AI. All rights reserved.
-        </div>
-      </footer>
+          </footer>
+        </main>
+      </div>
+
+      <UpgradeModal 
+        isOpen={isUpgradeModalOpen} 
+        onClose={() => setIsUpgradeModalOpen(false)} 
+      />
+
+      <Toast 
+        message={toastMessage} 
+        isVisible={isToastVisible} 
+        onClose={() => setIsToastVisible(false)} 
+      />
     </div>
   );
 }

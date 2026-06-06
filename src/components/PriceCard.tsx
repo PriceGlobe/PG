@@ -1,5 +1,5 @@
 import React from 'react';
-import { Star, MapPin, ExternalLink, Trophy } from 'lucide-react';
+import { Star, MapPin, ExternalLink, Trophy, Bell } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -18,15 +18,17 @@ export interface PriceResult {
   currency: string;
   isLowest: boolean;
   isFeatured?: boolean;
+  isWatched?: boolean;
   shippingEstimate?: number;
   dutyEstimate?: number;
 }
 
 interface PriceCardProps {
   result: PriceResult;
+  onToggleWatchlist?: (id: string) => void;
 }
 
-export const PriceCard: React.FC<PriceCardProps> = ({ result }) => {
+export const PriceCard: React.FC<PriceCardProps> = ({ result, onToggleWatchlist }) => {
   const savings = result.originalPrice - result.currentPrice;
   const savingsPercent = Math.round((savings / result.originalPrice) * 100);
   const hasExtraCosts = (result.shippingEstimate || 0) > 0 || (result.dutyEstimate || 0) > 0;
@@ -54,9 +56,22 @@ export const PriceCard: React.FC<PriceCardProps> = ({ result }) => {
             <span>{result.country}{result.city ? `, ${result.city}` : ''}</span>
           </div>
         </div>
-        <div className="flex items-center text-brand-gold">
-          <Star size={14} fill="currentColor" />
-          <span className="text-sm font-medium ml-1">{result.rating.toFixed(1)}</span>
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex items-center text-brand-gold">
+            <Star size={14} fill="currentColor" />
+            <span className="text-sm font-medium ml-1">{result.rating.toFixed(1)}</span>
+          </div>
+          <button 
+            onClick={() => onToggleWatchlist?.(result.id)}
+            className={cn(
+              "p-1.5 rounded-lg transition-colors",
+              result.isWatched 
+                ? "bg-brand-coral/10 text-brand-coral" 
+                : "bg-neutral-near-white text-neutral-mid-gray hover:text-brand-coral hover:bg-brand-coral/5"
+            )}
+          >
+            <Bell size={16} fill={result.isWatched ? "currentColor" : "none"} />
+          </button>
         </div>
       </div>
 
