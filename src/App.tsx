@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Header } from './components/Header';
 import { PriceCard } from './components/PriceCard';
 import { SkeletonCard } from './components/SkeletonCard';
 import { EmptyState } from './components/EmptyState';
 import { ErrorState } from './components/ErrorState';
+import { FilterBar } from './components/FilterBar';
+import { UsageMeter } from './components/UsageMeter';
 import { Dumbbell, Fuel, ShoppingCart, TrendingDown, Globe2, ShieldCheck, Loader2 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -17,6 +19,11 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [searchCount, setSearchCount] = useState(3);
+  
+  // Filtering & Sorting State
+  const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState('landed');
 
   const categories = [
     { id: 'sports', name: 'Sports', icon: Dumbbell },
@@ -31,6 +38,7 @@ function App() {
   const fetchProducts = async () => {
     setLoading(true);
     setError(null);
+    setSearchCount(prev => Math.min(prev + 1, 5));
     try {
       const res = await fetch(`${API_BASE_URL}/products?category=${activeCategory}`);
       if (!res.ok) throw new Error('Failed to fetch products');
@@ -54,6 +62,7 @@ function App() {
   const fetchPrices = async (productId: number) => {
     setScanning(true);
     setError(null);
+    setSelectedCountry(null); // Reset filters on new product
     try {
       // Simulate scanning feel
       await new Promise(resolve => setTimeout(resolve, 800));
@@ -69,6 +78,31 @@ function App() {
     }
   };
 
+  const handleSearch = async (term: string) => {
+    if (!term) return;
+    setLoading(true);
+    setError(null);
+    try {
+      setSearchCount(prev => prev + 1);
+      const res = await fetch(`${API_BASE_URL}/products?q=${encodeURIComponent(term)}`);
+      if (!res.ok) throw new Error('Failed to search products');
+      const data = await res.json();
+      setProducts(data);
+      if (data.length > 0) {
+        setSelectedProduct(data[0]);
+        fetchPrices(data[0].id);
+      } else {
+        setPrices([]);
+        setSelectedProduct(null);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleRetry = () => {
     if (selectedProduct) {
       fetchPrices(selectedProduct.id);
@@ -77,19 +111,46 @@ function App() {
     }
   };
 
+  // Memoized Filtered & Sorted Prices
+  const filteredPrices = useMemo(() => {
+    let result = [...prices];
+    
+    if (selectedCountry) {
+      result = result.filter(p => p.country === selectedCountry);
+    }
+    
+    result.sort((a, b) => {
+      if (sortBy === 'landed') return a.totalLandedCost - b.totalLandedCost;
+      if (sortBy === 'price_low') return a.price - b.price;
+      if (sortBy === 'rating') return b.rating - a.rating;
+      return 0;
+    });
+    
+    return result;
+  }, [prices, selectedCountry, sortBy]);
+
+  const availableCountries = useMemo(() => {
+    const countries = new Set(prices.map(p => p.country));
+    return Array.from(countries).sort();
+  }, [prices]);
+
   return (
     <div className="min-h-screen bg-neutral-near-white font-sans text-neutral-charcoal">
-      <Header />
+      <Header onSearch={handleSearch} isSearching={loading} />
       
       <main className="max-w-6xl mx-auto px-6 py-8">
-        {/* Hero Section */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl md:text-5xl font-bold text-brand-ocean mb-4">
-            Compare prices. <span className="text-brand-teal">Anywhere.</span>
-          </h1>
-          <p className="text-lg text-neutral-mid-gray max-w-2xl mx-auto">
-            AI-powered global price comparison with real-time landed cost estimates.
-          </p>
+        <div className="flex flex-col md:flex-row justify-between items-center gap-8 mb-12">
+          <div className="text-left flex-1">
+            <h1 className="text-4xl md:text-5xl font-bold text-brand-ocean mb-4">
+              Compare prices. <span className="text-brand-teal">Anywhere.</span>
+            </h1>
+            <p className="text-lg text-neutral-mid-gray max-w-2xl">
+              AI-powered global price comparison with real-time landed cost estimates.
+            </p>
+          </div>
+          <div className="w-full md:w-72">
+            <UsageMeter used={searchCount} total={5} />
+          </div>
         </div>
 
         {/* Category Tabs */}
@@ -145,7 +206,7 @@ function App() {
               <TrendingDown size={24} />
             </div>
             <div>
-              <div className="font-bold text-xl uppercase">24% Avg</div>
+              <div className="font-bold text-xl uppercase text-neutral-charcoal">24% Avg</div>
               <div className="text-sm text-neutral-mid-gray">Daily savings found</div>
             </div>
           </div>
@@ -154,7 +215,7 @@ function App() {
               <Globe2 size={24} />
             </div>
             <div>
-              <div className="font-bold text-xl uppercase">15 Countries</div>
+              <div className="font-bold text-xl uppercase text-neutral-charcoal">15 Countries</div>
               <div className="text-sm text-neutral-mid-gray">Real-time tracking</div>
             </div>
           </div>
@@ -163,7 +224,7 @@ function App() {
               <ShieldCheck size={24} />
             </div>
             <div>
-              <div className="font-bold text-xl uppercase">Landed Cost</div>
+              <div className="font-bold text-xl uppercase text-neutral-charcoal">Landed Cost</div>
               <div className="text-sm text-neutral-mid-gray">Incl. shipping & duties</div>
             </div>
           </div>
@@ -183,25 +244,21 @@ function App() {
               <Loader2 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-brand-teal animate-pulse" size={24} />
             </div>
             <h3 className="text-xl font-bold text-neutral-charcoal mb-2">Scanning global prices...</h3>
-            <p className="text-neutral-mid-gray italic">Comparing deals across 12 countries...</p>
+            <p className="text-neutral-mid-gray italic text-sm">Comparing deals for {selectedProduct?.name} across 12 countries...</p>
           </div>
         ) : prices.length > 0 ? (
           <>
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-lg font-bold text-neutral-charcoal">
-                {prices.length} results for "{selectedProduct?.name}"
-              </h2>
-              <div className="flex items-center gap-2 text-sm text-neutral-mid-gray">
-                <span>Sort by:</span>
-                <select className="bg-transparent font-semibold text-brand-teal focus:outline-none cursor-pointer">
-                  <option>Best Landed Cost</option>
-                  <option>Base Price: Low to High</option>
-                  <option>Store Rating</option>
-                </select>
-              </div>
-            </div>
+            <FilterBar 
+              countries={availableCountries}
+              selectedCountry={selectedCountry}
+              onCountryChange={setSelectedCountry}
+              sortBy={sortBy}
+              onSortChange={setSortBy}
+              resultsCount={filteredPrices.length}
+            />
+            
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {prices.map((result) => (
+              {filteredPrices.map((result) => (
                 <PriceCard 
                   key={result.id} 
                   result={{
@@ -210,16 +267,22 @@ function App() {
                     country: result.country,
                     city: result.city,
                     rating: result.rating,
-                    originalPrice: result.totalLandedCost * 1.25, // Using backend savings logic if available, else mock
+                    originalPrice: result.totalLandedCost * 1.25, 
                     currentPrice: result.totalLandedCost,
                     currency: result.targetCurrency === 'EUR' ? '€' : '$', 
-                    isLowest: result.isLowest || false,
+                    isLowest: result.isLowest && !selectedCountry, // Only show lowest tag if no country filter
                     shippingEstimate: result.shippingEstimate,
                     dutyEstimate: result.dutyEstimate,
                   }} 
                 />
               ))}
             </div>
+            
+            {filteredPrices.length === 0 && (
+              <div className="text-center py-20 bg-white rounded-xl border border-dashed border-neutral-light-gray">
+                <p className="text-neutral-mid-gray">No results found in <span className="font-bold">{selectedCountry}</span>. Try another country or clear filters.</p>
+              </div>
+            )}
           </>
         ) : (
           <EmptyState 
