@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
-import { PriceCard, PriceResult } from './components/PriceCard';
+import { PriceCard } from './components/PriceCard';
+import { SkeletonCard } from './components/SkeletonCard';
+import { EmptyState } from './components/EmptyState';
+import { ErrorState } from './components/ErrorState';
 import { Dumbbell, Fuel, ShoppingCart, TrendingDown, Globe2, ShieldCheck, Loader2 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -12,6 +15,8 @@ function App() {
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [prices, setPrices] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
 
   const categories = [
     { id: 'sports', name: 'Sports', icon: Dumbbell },
@@ -25,34 +30,50 @@ function App() {
 
   const fetchProducts = async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch(`${API_BASE_URL}/products?category=${activeCategory}`);
+      if (!res.ok) throw new Error('Failed to fetch products');
       const data = await res.json();
       setProducts(data);
       if (data.length > 0) {
-        fetchPrices(data[0].id);
         setSelectedProduct(data[0]);
+        fetchPrices(data[0].id);
       } else {
         setPrices([]);
         setSelectedProduct(null);
       }
-    } catch (err) {
-      console.error('Failed to fetch products', err);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
   const fetchPrices = async (productId: number) => {
-    setLoading(true);
+    setScanning(true);
+    setError(null);
     try {
+      // Simulate scanning feel
+      await new Promise(resolve => setTimeout(resolve, 800));
       const res = await fetch(`${API_BASE_URL}/prices/${productId}`);
+      if (!res.ok) throw new Error('Failed to fetch prices');
       const data = await res.json();
       setPrices(data);
-    } catch (err) {
-      console.error('Failed to fetch prices', err);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message);
     } finally {
-      setLoading(false);
+      setScanning(false);
+    }
+  };
+
+  const handleRetry = () => {
+    if (selectedProduct) {
+      fetchPrices(selectedProduct.id);
+    } else {
+      fetchProducts();
     }
   };
 
@@ -95,7 +116,7 @@ function App() {
         </div>
 
         {/* Product Selection */}
-        {products.length > 0 && (
+        {!loading && products.length > 0 && (
           <div className="mb-8 flex flex-wrap justify-center gap-4">
             {products.map((p) => (
               <button
@@ -119,68 +140,92 @@ function App() {
 
         {/* Stats / Value Prop Mini-cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <div className="bg-white p-4 rounded-xl border border-neutral-light-gray flex items-center gap-4">
+          <div className="bg-white p-4 rounded-xl border border-neutral-light-gray flex items-center gap-4 shadow-sm">
             <div className="bg-brand-teal/10 p-3 rounded-lg text-brand-teal">
               <TrendingDown size={24} />
             </div>
             <div>
-              <div className="font-bold text-xl">24% AVG</div>
+              <div className="font-bold text-xl uppercase">24% Avg</div>
               <div className="text-sm text-neutral-mid-gray">Daily savings found</div>
             </div>
           </div>
-          <div className="bg-white p-4 rounded-xl border border-neutral-light-gray flex items-center gap-4">
+          <div className="bg-white p-4 rounded-xl border border-neutral-light-gray flex items-center gap-4 shadow-sm">
             <div className="bg-brand-success/10 p-3 rounded-lg text-brand-success">
               <Globe2 size={24} />
             </div>
             <div>
-              <div className="font-bold text-xl">15 COUNTRIES</div>
+              <div className="font-bold text-xl uppercase">15 Countries</div>
               <div className="text-sm text-neutral-mid-gray">Real-time tracking</div>
             </div>
           </div>
-          <div className="bg-white p-4 rounded-xl border border-neutral-light-gray flex items-center gap-4">
+          <div className="bg-white p-4 rounded-xl border border-neutral-light-gray flex items-center gap-4 shadow-sm">
             <div className="bg-brand-coral/10 p-3 rounded-lg text-brand-coral">
               <ShieldCheck size={24} />
             </div>
             <div>
-              <div className="font-bold text-xl">LANDED COST</div>
+              <div className="font-bold text-xl uppercase">Landed Cost</div>
               <div className="text-sm text-neutral-mid-gray">Incl. shipping & duties</div>
             </div>
           </div>
         </div>
 
-        {/* Results Grid */}
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <Loader2 className="animate-spin text-brand-teal mb-4" size={48} />
-            <p className="text-neutral-mid-gray">Fetching latest prices...</p>
-          </div>
-        ) : (
+        {/* Main Content Area */}
+        {error ? (
+          <ErrorState onRetry={handleRetry} />
+        ) : loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {prices.map((result) => (
-              <PriceCard 
-                key={result.id} 
-                result={{
-                  id: result.id.toString(),
-                  storeName: result.store_name,
-                  country: result.country,
-                  city: result.city,
-                  rating: result.rating,
-                  originalPrice: result.price * 1.2, // Mock original
-                  currentPrice: result.totalLandedCost,
-                  currency: '$', 
-                  isLowest: result.isLowest || false,
-                  shippingEstimate: result.shippingEstimate,
-                  dutyEstimate: result.dutyEstimate,
-                }} 
-              />
-            ))}
+            {[1, 2, 3, 4, 5, 6].map(i => <SkeletonCard key={i} />)}
           </div>
-        )}
-
-        {!loading && prices.length === 0 && (
-          <div className="text-center py-20">
-            <p className="text-neutral-mid-gray">No prices found for this product yet.</p>
+        ) : scanning ? (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="relative mb-6">
+              <div className="w-16 h-16 border-4 border-brand-teal/20 border-t-brand-teal rounded-full animate-spin"></div>
+              <Loader2 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-brand-teal animate-pulse" size={24} />
+            </div>
+            <h3 className="text-xl font-bold text-neutral-charcoal mb-2">Scanning global prices...</h3>
+            <p className="text-neutral-mid-gray italic">Comparing deals across 12 countries...</p>
           </div>
+        ) : prices.length > 0 ? (
+          <>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-lg font-bold text-neutral-charcoal">
+                {prices.length} results for "{selectedProduct?.name}"
+              </h2>
+              <div className="flex items-center gap-2 text-sm text-neutral-mid-gray">
+                <span>Sort by:</span>
+                <select className="bg-transparent font-semibold text-brand-teal focus:outline-none cursor-pointer">
+                  <option>Best Landed Cost</option>
+                  <option>Base Price: Low to High</option>
+                  <option>Store Rating</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {prices.map((result) => (
+                <PriceCard 
+                  key={result.id} 
+                  result={{
+                    id: result.id.toString(),
+                    storeName: result.store_name,
+                    country: result.country,
+                    city: result.city,
+                    rating: result.rating,
+                    originalPrice: result.totalLandedCost * 1.25, // Using backend savings logic if available, else mock
+                    currentPrice: result.totalLandedCost,
+                    currency: result.targetCurrency === 'EUR' ? '€' : '$', 
+                    isLowest: result.isLowest || false,
+                    shippingEstimate: result.shippingEstimate,
+                    dutyEstimate: result.dutyEstimate,
+                  }} 
+                />
+              ))}
+            </div>
+          </>
+        ) : (
+          <EmptyState 
+            searchTerm={activeCategory} 
+            onBrowseCategories={() => setActiveCategory('sports')} 
+          />
         )}
       </main>
 
@@ -215,7 +260,7 @@ function App() {
           </div>
         </div>
         <div className="max-w-6xl mx-auto mt-12 pt-8 border-t border-neutral-light-gray text-center text-neutral-mid-gray text-xs">
-          © 2024 PriceGlobe AI. All rights reserved.
+          © 2026 PriceGlobe AI. All rights reserved.
         </div>
       </footer>
     </div>
