@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
@@ -10,7 +10,7 @@ import { FilterBar } from './components/FilterBar';
 import { UsageMeter } from './components/UsageMeter';
 import { UpgradeModal } from './components/UpgradeModal';
 import { Toast } from './components/Toast';
-import { Dumbbell, Fuel, ShoppingCart, TrendingDown, Globe2, ShieldCheck, Loader2, Menu } from 'lucide-react';
+import { Dumbbell, Fuel, ShoppingCart, Loader2 } from 'lucide-react';
 import { clsx } from 'clsx';
 
 const API_BASE_URL = 'http://localhost:3001/api';
@@ -285,7 +285,7 @@ function App() {
         return (
           <div className="max-w-4xl mx-auto py-12 text-center">
              <div className="bg-brand-gold/20 w-20 h-20 rounded-3xl flex items-center justify-center mb-8 mx-auto">
-              <Crown className="text-brand-gold" size={40} />
+             {/* Crown icon removed */}
             </div>
             <h1 className="text-4xl font-bold text-neutral-charcoal mb-4">PriceGlobe Premium</h1>
             <p className="text-xl text-neutral-mid-gray mb-12">The ultimate tools for global shoppers and deal hunters.</p>
